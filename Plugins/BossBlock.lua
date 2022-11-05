@@ -548,6 +548,10 @@ do
 		[-609] = true, -- Grimrail Depot, destroying the train
 		[-612] = true, -- Highmaul, Kargath Death
 		[-706] = true, -- Maw of Souls, after Ymiron
+		[-811] = true, -- Return to Karazhan: The Banquet Hall, after Moroes
+		[-812] = true, -- Return to Karazhan: The Guest Chambers, after Maiden of Virtue
+		[-817] = true, -- Return to Karazhan: The Menagerie, after Curator
+		[-820] = true, -- Return to Karazhan: Guardian's Study, after Mana Devourer
 		[-855] = true, -- Tomb of Sargeras, portal to Kil'jaeden
 		[-909] = true, -- Antorus, teleportation to "The exhaust"
 		[-914] = true, -- Antorus, teleportation to "The burning throne"
@@ -644,4 +648,3 @@ do
 		end
 	end
 end
-
