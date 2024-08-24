@@ -278,6 +278,7 @@ do
 end
 
 do
+	local currentMap
 	local function DisableModules()
 		for _, module in next, bosses do
 			if module:IsEngaged() and (module:GetJournalID() or module:GetAllowWin()) and UnitIsDeadOrGhost("player") then
@@ -291,6 +292,7 @@ do
 	end
 	local function DisableCore()
 		if coreEnabled then
+			print("core disabled")
 			coreEnabled = false
 
 			loader.UnregisterMessage(mod, "BigWigs_BossComm")
@@ -311,11 +313,25 @@ do
 			core:SendMessage("BigWigs_CoreDisabled")
 		end
 	end
+	local function mapChanged(_, _, newMap)
+		-- not if the new map is one of the enable zones or if the GUI is open
+		if not loader.enableZones[newMap] and (not BigWigsOptions or not BigWigsOptions:IsOpen()) then
+			print("disabling core because of the mapChanged check")
+			DisableCore()
+		end
+	end
 	local function zoneChanged()
+		-- don't disable core if you've entered an enable zone
+		if currentMap and loader.enableZones[currentMap] then
+			print("unregistering the zoneChanged check because we're in "..currentMap)
+			core.UnregisterEvent(mod, "ZONE_CHANGED_NEW_AREA")
+			return
+		end
 		-- Not if you released spirit on a world boss or if the GUI is open
 		if not UnitIsDeadOrGhost("player") and (not BigWigsOptions or not BigWigsOptions:IsOpen()) then
 			local bars = core:GetPlugin("Bars", true)
 			if not bars or not bars:HasActiveBars() then -- Not if bars are showing
+				print("disabling core because of the zoneChanged check")
 				DisableCore() -- Alive in a non-enable zone, disable
 			end
 		end
@@ -326,24 +342,25 @@ do
 			module:Enable()
 		end
 	end
-	function core:Enable(unit)
+	function core:Enable(unit, enabledMap)
+		currentMap = enabledMap
+		print("core enabled for map "..(enabledMap or "nil"))
 		if not coreEnabled then
 			coreEnabled = true
-
 			loader.RegisterMessage(mod, "BigWigs_BossComm", bossComm)
 			core.RegisterEvent(mod, "ENCOUNTER_START")
 			core.RegisterEvent(mod, "RAID_BOSS_WHISPER")
 			core.RegisterEvent(mod, "UPDATE_MOUSEOVER_UNIT", updateMouseover)
 			core.RegisterEvent(mod, "UNIT_TARGET", unitTargetChanged)
-			core.RegisterEvent(mod, "PLAYER_LEAVING_WORLD", DisableCore) -- Simple disable when leaving instances
-			if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then -- XXX implement a separate ID system for delves
-				core.RegisterEvent(mod, "PLAYER_MAP_CHANGED", DisableCore)
+			if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then
+				core.RegisterEvent(mod, "PLAYER_MAP_CHANGED", mapChanged)
+			else
+				core.RegisterEvent(mod, "PLAYER_LEAVING_WORLD", DisableCore) -- Simple disable when leaving instances
 			end
-			local _, instanceType = GetInstanceInfo()
-			if instanceType == "none" then -- We don't want to be disabling in instances
+			if not loader.zoneTbl[enabledMap] then -- We don't want to be disabling in a supported zone
+				print("registering ZONE_CHANGED_NEW_AREA to disable because we're in "..(enabledMap or "nil"))
 				core.RegisterEvent(mod, "ZONE_CHANGED_NEW_AREA", zoneChanged) -- Special checks for disabling after world bosses
 			end
-
 
 			if IsLoggedIn() then
 				EnablePlugins()

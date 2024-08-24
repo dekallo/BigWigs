@@ -148,6 +148,7 @@ local loadOnZone = {} -- BigWigs modulepack that should load on a specific zone
 local loadOnSlash = {} -- BigWigs modulepacks that can load from a chat command
 local menus = {} -- contains the menus for BigWigs, once the core is loaded they will get injected
 local enableZones = {} -- contains the zones in which BigWigs will enable
+public.enableZones = enableZones
 local disabledZones -- contains the zones in which BigWigs will enable, but the user has disabled the addon
 local worldBosses = {} -- contains the list of world bosses per zone that should enable the core
 local fakeZones = { -- Fake zones used as GUI menus
@@ -615,11 +616,11 @@ local function loadZone(zone)
 	end
 end
 
-local function loadAndEnableCore()
+local function loadAndEnableCore(mapId)
 	local loaded = load(BigWigs, "BigWigs_Core")
 	if not BigWigs then return end
 	loadAddons(loadOnCoreEnabled)
-	BigWigs:Enable()
+	BigWigs:Enable(nil, mapId)
 	return loaded
 end
 
@@ -1002,11 +1003,12 @@ function mod:ADDON_LOADED(addon)
 	--bwFrame:RegisterEvent("GLOBAL_MOUSE_DOWN")
 	--bwFrame:RegisterEvent("GLOBAL_MOUSE_UP")
 
-	if C_EventUtils.IsEventValid("ACTIVE_DELVE_DATA_UPDATE") then -- XXX Update me to new event
-		bwFrame:RegisterEvent("ACTIVE_DELVE_DATA_UPDATE")
+	if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then
+		bwFrame:RegisterEvent("PLAYER_MAP_CHANGED")
+	else -- Classic
+		bwFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	end
 	bwFrame:RegisterEvent("ZONE_CHANGED")
-	bwFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	bwFrame:RegisterEvent("GROUP_FORMED")
 	bwFrame:RegisterEvent("GROUP_LEFT")
 	if C_EventUtils.IsEventValid("START_PLAYER_COUNTDOWN") then
@@ -1702,17 +1704,14 @@ end
 
 do
 	local warnedThisZone = {}
-	function mod:PLAYER_ENTERING_WORLD() -- Raid bosses
-		-- Zone checking
-		local _, _, _, _, _, _, _, id = GetInstanceInfo()
-
+	local function enteredZone(self, id)
 		-- Module loading
 		if enableZones[id] then
-			if loadAndEnableCore() then
+			if loadAndEnableCore(id) then
 				loadZone(id)
 			end
 		elseif BigWigs3DB and BigWigs3DB.breakTime then -- Break timer restoration
-			loadAndEnableCore()
+			loadAndEnableCore(id)
 		else
 			if disabledZones and disabledZones[id] then -- We have content for the zone but it is disabled in the addons menu
 				local msg = L.disabledAddOn:format(disabledZones[id])
@@ -1750,8 +1749,14 @@ do
 			end
 		end
 	end
-	if public.isRetail then
-		mod.ACTIVE_DELVE_DATA_UPDATE = mod.PLAYER_ENTERING_WORLD -- XXX Update me to new event
+	function mod:PLAYER_ENTERING_WORLD()
+		local _, _, _, _, _, _, _, id = GetInstanceInfo()
+		print("PLAYER_ENTERING_WORLD map id: "..id)
+		enteredZone(self, id)
+	end
+	function mod:PLAYER_MAP_CHANGED(oldMap, newMap)
+		print("PLAYER_MAP_CHANGED left "..oldMap..", entered "..newMap)
+		enteredZone(self, newMap)
 	end
 end
 
