@@ -1005,10 +1005,9 @@ function mod:ADDON_LOADED(addon)
 
 	if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then
 		bwFrame:RegisterEvent("PLAYER_MAP_CHANGED")
-	else -- Classic
-		bwFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	end
 	bwFrame:RegisterEvent("ZONE_CHANGED")
+	bwFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	bwFrame:RegisterEvent("GROUP_FORMED")
 	bwFrame:RegisterEvent("GROUP_LEFT")
 	if C_EventUtils.IsEventValid("START_PLAYER_COUNTDOWN") then
@@ -1756,7 +1755,9 @@ do
 	end
 	function mod:PLAYER_MAP_CHANGED(oldMap, newMap)
 		print("PLAYER_MAP_CHANGED left "..oldMap..", entered "..newMap)
-		enteredZone(self, newMap)
+		if oldMap ~= -1 then -- -1 == loading screen
+			enteredZone(self, newMap)
+		end
 	end
 end
 

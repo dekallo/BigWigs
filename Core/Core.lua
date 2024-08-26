@@ -296,6 +296,7 @@ do
 			coreEnabled = false
 
 			loader.UnregisterMessage(mod, "BigWigs_BossComm")
+			core.UnregisterEvent(mod, "PLAYER_MAP_CHANGED") -- TODO scoping?
 			core.UnregisterEvent(mod, "ZONE_CHANGED_NEW_AREA")
 			core.UnregisterEvent(mod, "PLAYER_LEAVING_WORLD")
 			core.UnregisterEvent(mod, "ENCOUNTER_START")
@@ -311,13 +312,6 @@ do
 			end
 			DisableModules()
 			core:SendMessage("BigWigs_CoreDisabled")
-		end
-	end
-	local function mapChanged(_, _, newMap)
-		-- not if the new map is one of the enable zones or if the GUI is open
-		if not loader.enableZones[newMap] and (not BigWigsOptions or not BigWigsOptions:IsOpen()) then
-			print("disabling core because of the mapChanged check")
-			DisableCore()
 		end
 	end
 	local function zoneChanged()
@@ -336,6 +330,26 @@ do
 			end
 		end
 	end
+	local function mapChanged(_, _, newMap)
+		-- don't disable core if the new map is one of the enable zones
+		if not loader.enableZones[newMap] then
+			-- don't disable core if the GUI is open
+			if (not BigWigsOptions or not BigWigsOptions:IsOpen()) then
+				print("disabling core because of the mapChanged check")
+				DisableCore()
+			else
+				-- we've left an enable zone but the GUI is open, disable on next zone change
+				print("registering ZONE_CHANGED_NEW_AREA to disable because we're in "..(newMap or "nil"))
+				core.RegisterEvent(mod, "ZONE_CHANGED_NEW_AREA", zoneChanged) -- Special checks for disabling after world bosses
+			end
+		else
+			-- if we've switched to a different enable zone, disable the previous zone's modules
+			-- TODO if zone is different
+			print("disabling all previous zone modules")
+			core:CancelAllTimers()
+			DisableModules()
+		end
+	end
 
 	local function EnablePlugins()
 		for _, module in next, plugins do
@@ -352,7 +366,7 @@ do
 			core.RegisterEvent(mod, "RAID_BOSS_WHISPER")
 			core.RegisterEvent(mod, "UPDATE_MOUSEOVER_UNIT", updateMouseover)
 			core.RegisterEvent(mod, "UNIT_TARGET", unitTargetChanged)
-			if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then
+			if C_EventUtils.IsEventValid("PLAYER_MAP_CHANGED") then -- TODO only if in a delve?
 				core.RegisterEvent(mod, "PLAYER_MAP_CHANGED", mapChanged)
 			else
 				core.RegisterEvent(mod, "PLAYER_LEAVING_WORLD", DisableCore) -- Simple disable when leaving instances
