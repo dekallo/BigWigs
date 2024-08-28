@@ -606,6 +606,31 @@ do
 				end
 			end
 			module.db = core.db:RegisterNamespace(module.name, { profile = module.toggleDefaults })
+
+			-- set spell renames
+			if module.spellRenamesOptions then
+				for i = 1, #module.spellRenamesOptions do
+					local key = module.spellRenamesOptions[i][1]
+					local extraKeys = module.spellRenamesOptions[i].extra
+					local defaultRename = module.spellRenamesOptions[i][2]
+					local dbRename = module.db.profile["sr_"..key]
+					if dbRename then
+						module:SetSpellRename(key, dbRename)
+						if extraKeys then
+							for i = 1, #extraKeys do
+								module:SetSpellRename(extraKeys[i], dbRename)
+							end
+						end
+					elseif defaultRename then
+						module:SetSpellRename(key, defaultRename)
+						if extraKeys then
+							for i = 1, #extraKeys do
+								module:SetSpellRename(extraKeys[i], defaultRename)
+							end
+						end
+					end
+				end
+			end
 		end
 	end
 

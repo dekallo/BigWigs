@@ -68,6 +68,7 @@ local myGroupGUIDs, myGroupRoles, myGroupRolePositions = {}, {}, {}
 local solo = false
 local classColorMessages = true
 local englishSayMessages = false
+local GetSpellRename = BigWigsAPI.GetSpellRename
 do -- Update some data that may be called at the top of modules (prior to initialization)
 	local _, _, diff, _, currentMaxPlayers = GetInstanceInfo()
 	difficulty, maxPlayers = diff, currentMaxPlayers
@@ -178,7 +179,10 @@ end
 local spells = setmetatable({}, {__index =
 	function(self, key)
 		local value
-		if key > 0 then
+		local rename = GetSpellRename(key)
+		if rename then
+			value = rename
+		elseif key > 0 then
 			value = GetSpellName(key)
 			if not value then
 				value = "INVALID"
@@ -313,6 +317,17 @@ function boss:SetPrivateAuraSounds(opts)
 		end
 	end
 	self.privateAuraSoundOptions = opts
+end
+
+--- Sets which spell ids are eligible to be renamed.
+-- @param opts table containing the spells as spellId values or table values in the format {spellId, defaultRename, [extra = {}]}
+function boss:InitializeRenames(opts)
+	for i = 1, #opts do
+		if type(opts[i]) ~= "table" then
+			opts[i] = { opts[i] }
+		end
+	end
+	self.spellRenamesOptions = opts
 end
 
 --- Check if a module option is enabled.
@@ -582,6 +597,11 @@ do
 	local SetSpellRename = BigWigsAPI.SetSpellRename
 	function boss:SetSpellRename(spellId, text)
 		SetSpellRename(spellId, text)
+		if text ~= "" then
+			spells[spellId] = text
+		else
+			spells[spellId] = nil
+		end
 	end
 end
 
@@ -728,12 +748,14 @@ do
 					local self = enabledModules[i]
 					local m = eventMap[self][event]
 					if m and (m[extraSpellId] or m["*"]) then
+						local spellRename = GetSpellRename(spellId) or spellName
+						local extraSpellRename = GetSpellRename(extraSpellId) or amount
 						local func = m[extraSpellId] or m["*"]
 						-- DEVS! Please ask if you need args attached to the table that we've missed out!
 						args.sourceGUID, args.sourceName, args.sourceFlags, args.sourceRaidFlags = sourceGUID, sourceName, sourceFlags, sourceRaidFlags
 						args.destGUID, args.destName, args.destFlags, args.destRaidFlags = destGUID, destName, destFlags, destRaidFlags
-						args.spellId, args.spellName, args.spellSchool = spellId, spellName, spellSchool
-						args.time, args.extraSpellId, args.extraSpellName, args.amount = time, extraSpellId, amount, amount
+						args.spellId, args.spellName, args.spellSchool = spellId, spellRename, spellSchool
+						args.time, args.extraSpellId, args.extraSpellName, args.amount = time, extraSpellId, extraSpellRename, amount
 						self[func](self, args)
 					end
 				end
@@ -742,11 +764,12 @@ do
 					local self = enabledModules[i]
 					local m = eventMap[self][event]
 					if m and (m[spellId] or m["*"]) then
+						local spellRename = GetSpellRename(spellId) or spellName
 						local func = m[spellId] or m["*"]
 						-- DEVS! Please ask if you need args attached to the table that we've missed out!
 						args.sourceGUID, args.sourceName, args.sourceFlags, args.sourceRaidFlags = sourceGUID, sourceName, sourceFlags, sourceRaidFlags
 						args.destGUID, args.destName, args.destFlags, args.destRaidFlags = destGUID, destName, destFlags, destRaidFlags
-						args.spellId, args.spellName, args.spellSchool = spellId, spellName, spellSchool
+						args.spellId, args.spellName, args.spellSchool = spellId, spellRename, spellSchool
 						args.time, args.extraSpellId, args.extraSpellName, args.amount = time, extraSpellId, amount, amount
 						self[func](self, args)
 					end

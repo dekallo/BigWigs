@@ -13,6 +13,7 @@ local names = {}
 local descriptions = {}
 
 local GetSpellDescription, GetSpellName, GetSpellTexture = BigWigsLoader.GetSpellDescription, BigWigsLoader.GetSpellName, BigWigsLoader.GetSpellTexture
+local GetSpellRename = BigWigsAPI.GetSpellRename
 local type, next, tonumber, gsub, lshift, band = type, next, tonumber, gsub, bit.lshift, bit.band
 local C_EncounterJournal_GetSectionInfo = BigWigsLoader.isCata and function(key)
 	return C_EncounterJournal.GetSectionInfo(key) or BigWigsAPI:GetLocale("BigWigs: Encounter Info")[key]
@@ -196,7 +197,7 @@ function BigWigs:GetBossOptionDetails(module, option)
 		optionType = type(option)
 	end
 
-	local alternativeName = module.altNames and module.altNames[option]
+	local alternativeName = GetSpellRename(option) or module.altNames and module.altNames[option]
 	local moduleLocale = module:GetLocale(true)
 
 	if optionType == "string" then

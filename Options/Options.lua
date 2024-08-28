@@ -1044,6 +1044,145 @@ local function populatePrivateAuraOptions(widget)
 	scrollFrame:PerformLayout()
 end
 
+local function populateSpellRenamesOptions(widget)
+	local scrollFrame = widget:GetUserData("parent")
+	scrollFrame:ReleaseChildren()
+	scrollFrame:PauseLayout()
+
+	local text = AceGUI:Create("Label")
+	text:SetText(L.spellRenames_desc)
+	text:SetFullWidth(true)
+	text:SetHeight(30)
+	scrollFrame:AddChild(text)
+
+	local spellRenamesOptions = widget:GetUserData("spellRenamesOptions")
+	-- preserve module order
+	for _, module in ipairs(widget:GetUserData("moduleList")) do
+		local options = spellRenamesOptions[module]
+		if options then
+			if module.SetupOptions then module:SetupOptions() end -- init the db
+
+			local header = AceGUI:Create("Heading")
+			header:SetText(module.displayName)
+			header:SetFullWidth(true)
+			scrollFrame:AddChild(header)
+			for _, option in ipairs(options) do
+				local spellId = option[1]
+				local default = option[2]
+				local dbKey = ("sr_%s"):format(spellId)
+
+				local name = loader.GetSpellName(spellId)
+				local texture = loader.GetSpellTexture(spellId)
+
+				local icon = AceGUI:Create("Icon")
+				icon:SetImage(texture, 0.07, 0.93, 0.07, 0.93)
+				icon:SetImageSize(40, 40)
+				icon:SetRelativeWidth(0.1)
+				icon:SetUserData("bossOption", spellId)
+				icon:SetUserData("updateTooltip", true)
+				icon:SetCallback("OnEnter", function(widget)
+					bwTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+					bwTooltip:SetSpellByID(widget:GetUserData("bossOption"))
+					bwTooltip:Show()
+				end)
+				icon:SetCallback("OnLeave", bwTooltip_Hide)
+
+				local editBox = AceGUI:Create("EditBox")
+				editBox:SetLabel(default and L.alternativeName:format(name, default) or name)
+				editBox:SetRelativeWidth(0.88)
+				editBox:DisableButton(true)
+				editBox:SetUserData("spellId", spellId)
+				editBox:SetUserData("extraSpellIds", option.extra)
+				editBox:SetUserData("dbKey", dbKey)
+				editBox:SetUserData("default", default)
+				editBox:SetUserData("module", module)
+				editBox:SetCallback("OnTextChanged", function(widget, _, value)
+					local spellId = widget:GetUserData("spellId")
+					local extraSpellIds = widget:GetUserData("extraSpellIds")
+					local dbKey = widget:GetUserData("dbKey")
+					local module = widget:GetUserData("module")
+					local default = widget:GetUserData("default")
+					if value == default then
+						value = nil
+					end
+					module.db.profile[dbKey] = value
+					module:SetSpellRename(spellId, value)
+					if extraSpellIds then
+						for i = 1, #extraSpellIds do
+							module:SetSpellRename(extraSpellIds[i], value)
+						end
+					end
+				end)
+				local value = module.db.profile[dbKey] or default
+				editBox:SetText(value)
+
+				scrollFrame:AddChildren(icon, editBox)
+			end
+		end
+	end
+
+	local reset = AceGUI:Create("Button")
+	reset:SetFullWidth(true)
+	reset:SetText(BigWigsAPI:GetLocale("BigWigs: Plugins").reset)
+	reset:SetUserData("label", BigWigsAPI:GetLocale("BigWigs: Plugins").reset)
+	reset:SetUserData("desc", L.resetRenames_desc)
+	reset:SetUserData("scrollFrame", widget)
+	reset:SetUserData("spellRenamesOptions", spellRenamesOptions)
+	reset:SetCallback("OnEnter", slaveOptionMouseOver)
+	reset:SetCallback("OnLeave", bwTooltip_Hide)
+	reset:SetCallback("OnClick", function(widget)
+		for module, options in next, widget:GetUserData("spellRenamesOptions") do
+			for _, option in next, options do
+				local key = "sr_" .. option[1]
+				module.db.profile[key] = nil
+				module:SetSpellRename(option[1], option[2])
+				local extraSpellIds = option.extra
+				if extraSpellIds then
+					for i = 1, #extraSpellIds do
+						module:SetSpellRename(extraSpellIds[i], option[2])
+					end
+				end
+			end
+		end
+		populateSpellRenamesOptions(widget:GetUserData("scrollFrame"))
+	end)
+	scrollFrame:AddChild(reset)
+
+	local clear = AceGUI:Create("Button")
+	clear:SetFullWidth(true)
+	clear:SetText(L.clear)
+	clear:SetUserData("label", L.clear)
+	clear:SetUserData("desc", L.clearRenames_desc)
+	clear:SetUserData("scrollFrame", widget)
+	clear:SetUserData("spellRenamesOptions", spellRenamesOptions)
+	clear:SetCallback("OnEnter", slaveOptionMouseOver)
+	clear:SetCallback("OnLeave", bwTooltip_Hide)
+	clear:SetCallback("OnClick", function(widget)
+		for module, options in next, widget:GetUserData("spellRenamesOptions") do
+			for _, option in next, options do
+				local key = "sr_" .. option[1]
+				if option[2] then
+					module.db.profile[key] = ""
+				else
+					module.db.profile[key] = nil
+				end
+				module:SetSpellRename(option[1], nil)
+				local extraSpellIds = option.extra
+				if extraSpellIds then
+					for i = 1, #extraSpellIds do
+						module:SetSpellRename(extraSpellIds[i], nil)
+					end
+				end
+			end
+		end
+		populateSpellRenamesOptions(widget:GetUserData("scrollFrame"))
+	end)
+	scrollFrame:AddChild(clear)
+
+	scrollFrame:ResumeLayout()
+	scrollFrame:PerformLayout()
+end
+
 local function statsDefeatLabelOnEnter(self)
 	bwTooltip:SetOwner(self.frame, "ANCHOR_TOP")
 	bwTooltip:AddLine(L.defeat_desc, 1, 1, 1)
@@ -1271,6 +1410,8 @@ function showToggleOptions(widget, event, group, noScrollReset)
 
 	if group == "Private Aura Sounds" then
 		populatePrivateAuraOptions(widget)
+	elseif group == "Spell Renames" then
+		populateSpellRenamesOptions(widget)
 	else
 		populateToggleOptions(widget, BigWigs:GetBossModule(group, true))
 	end
@@ -1284,7 +1425,7 @@ local function onZoneShow(treeWidget, id)
 	local moduleList = loader:GetZoneMenus()[id]
 	if type(moduleList) ~= "table" then return end -- No modules registered
 
-	local zoneList, zoneSort, privateAuraSoundOptions = {}, {}, nil
+	local zoneList, zoneSort, privateAuraSoundOptions, spellRenamesOptions = {}, {}, nil, nil
 	do
 		for i = 1, #moduleList do
 			local module = moduleList[i]
@@ -1294,12 +1435,23 @@ local function onZoneShow(treeWidget, id)
 				if not privateAuraSoundOptions then privateAuraSoundOptions = {} end
 				privateAuraSoundOptions[module] = module.privateAuraSoundOptions
 			end
+			if module.spellRenamesOptions then
+				if not spellRenamesOptions then spellRenamesOptions = {} end
+				spellRenamesOptions[module] = module.spellRenamesOptions
+			end
 		end
 
 		-- Add the private aura plugin module
 		if privateAuraSoundOptions then
 			local moduleName = "Private Aura Sounds"
 			zoneList[moduleName] = ("|cffffbfc9%s|r"):format(L.privateAuraSounds)
+			zoneSort[#zoneSort+1] = moduleName
+		end
+
+		-- Add spell rename module
+		if spellRenamesOptions then
+			local moduleName = "Spell Renames"
+			zoneList[moduleName] = ("|cffffbfc9%s|r"):format(L.spellRenames)
 			zoneSort[#zoneSort+1] = moduleName
 		end
 	end
@@ -1317,6 +1469,7 @@ local function onZoneShow(treeWidget, id)
 	innerContainer:SetUserData("zone", id)
 	innerContainer:SetUserData("moduleList", moduleList)
 	innerContainer:SetUserData("privateAuraSoundOptions", privateAuraSoundOptions)
+	innerContainer:SetUserData("spellRenamesOptions", spellRenamesOptions)
 	innerContainer:SetGroupList(zoneList, zoneSort)
 
 	-- scroll is where we actually put stuff in case things
