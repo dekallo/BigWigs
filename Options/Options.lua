@@ -938,6 +938,19 @@ local function SecondsToTime(time)
 	return ("%d:%02d"):format(m, s)
 end
 
+local function spellTooltipMouseOver(self)
+	bwTooltip:SetOwner(self.frame, "ANCHOR_RIGHT")
+	bwTooltip:SetSpellByID(self:GetUserData("bossOption"))
+	bwTooltip:Show()
+end
+
+local function journalTooltipMouseOver(self)
+	bwTooltip:SetOwner(self.frame, "ANCHOR_RIGHT")
+	bwTooltip:AddLine(self:GetUserData("label"), 1, 1, 1)
+	bwTooltip:AddLine(self:GetUserData("desc"), nil, nil, nil, true)
+	bwTooltip:Show()
+end
+
 local function populatePrivateAuraOptions(widget)
 	local scrollFrame = widget:GetUserData("parent")
 	scrollFrame:ReleaseChildren()
@@ -978,11 +991,7 @@ local function populatePrivateAuraOptions(widget)
 				icon:SetRelativeWidth(0.1)
 				icon:SetUserData("bossOption", id)
 				icon:SetUserData("updateTooltip", true)
-				icon:SetCallback("OnEnter", function(widget)
-					bwTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
-					bwTooltip:SetSpellByID(widget:GetUserData("bossOption"))
-					bwTooltip:Show()
-				end)
+				icon:SetCallback("OnEnter", spellTooltipMouseOver)
 				icon:SetCallback("OnLeave", bwTooltip_Hide)
 
 				local dropdown = AceGUI:Create("SharedDropdown")
@@ -1067,38 +1076,43 @@ local function populateSpellRenamesOptions(widget)
 			header:SetFullWidth(true)
 			scrollFrame:AddChild(header)
 			for _, option in ipairs(options) do
-				local spellId = option[1]
+				local bossOption = option[1]
 				local default = option[2]
-				local dbKey = ("sr_%s"):format(spellId)
+				local dbKey = ("sr_%s"):format(bossOption)
 
-				local name = loader.GetSpellName(spellId)
-				local texture = loader.GetSpellTexture(spellId)
-
+				local name
 				local icon = AceGUI:Create("Icon")
-				icon:SetImage(texture, 0.07, 0.93, 0.07, 0.93)
+				if type(bossOption) == "number" and bossOption > 0 then
+					name = loader.GetSpellName(bossOption)
+					local texture = loader.GetSpellTexture(bossOption)
+					icon:SetImage(texture, 0.07, 0.93, 0.07, 0.93)
+					icon:SetUserData("bossOption", bossOption)
+					icon:SetCallback("OnEnter", spellTooltipMouseOver)
+				else
+					local _, optionName, desc, texture = BigWigs:GetBossOptionDetails(module, bossOption)
+					name = optionName
+					icon:SetImage(texture, 0.07, 0.93, 0.07, 0.93)
+					icon:SetUserData("label", name)
+					icon:SetUserData("desc", desc)
+					icon:SetCallback("OnEnter", journalTooltipMouseOver)
+				end
 				icon:SetImageSize(40, 40)
 				icon:SetRelativeWidth(0.1)
-				icon:SetUserData("bossOption", spellId)
 				icon:SetUserData("updateTooltip", true)
-				icon:SetCallback("OnEnter", function(widget)
-					bwTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
-					bwTooltip:SetSpellByID(widget:GetUserData("bossOption"))
-					bwTooltip:Show()
-				end)
 				icon:SetCallback("OnLeave", bwTooltip_Hide)
 
 				local editBox = AceGUI:Create("EditBox")
 				editBox:SetLabel(default and L.alternativeName:format(name, default) or name)
 				editBox:SetRelativeWidth(0.88)
 				editBox:DisableButton(true)
-				editBox:SetUserData("spellId", spellId)
-				editBox:SetUserData("extraSpellIds", option.extra)
+				editBox:SetUserData("bossOption", bossOption)
+				editBox:SetUserData("extrabossOptions", option.extra)
 				editBox:SetUserData("dbKey", dbKey)
 				editBox:SetUserData("default", default)
 				editBox:SetUserData("module", module)
 				editBox:SetCallback("OnTextChanged", function(widget, _, value)
-					local spellId = widget:GetUserData("spellId")
-					local extraSpellIds = widget:GetUserData("extraSpellIds")
+					local bossOption = widget:GetUserData("bossOption")
+					local extrabossOptions = widget:GetUserData("extrabossOptions")
 					local dbKey = widget:GetUserData("dbKey")
 					local module = widget:GetUserData("module")
 					local default = widget:GetUserData("default")
@@ -1106,10 +1120,10 @@ local function populateSpellRenamesOptions(widget)
 						value = nil
 					end
 					module.db.profile[dbKey] = value
-					module:SetSpellRename(spellId, value)
-					if extraSpellIds then
-						for i = 1, #extraSpellIds do
-							module:SetSpellRename(extraSpellIds[i], value)
+					module:SetSpellRename(bossOption, value)
+					if extrabossOptions then
+						for i = 1, #extrabossOptions do
+							module:SetSpellRename(extrabossOptions[i], value)
 						end
 					end
 				end)
@@ -1136,10 +1150,10 @@ local function populateSpellRenamesOptions(widget)
 				local key = "sr_" .. option[1]
 				module.db.profile[key] = nil
 				module:SetSpellRename(option[1], option[2])
-				local extraSpellIds = option.extra
-				if extraSpellIds then
-					for i = 1, #extraSpellIds do
-						module:SetSpellRename(extraSpellIds[i], option[2])
+				local extrabossOptions = option.extra
+				if extrabossOptions then
+					for i = 1, #extrabossOptions do
+						module:SetSpellRename(extrabossOptions[i], option[2])
 					end
 				end
 			end
@@ -1228,7 +1242,7 @@ local function populateToggleOptions(widget, module)
 	local sDB = BigWigsStatsDB
 	local journalId = module:GetJournalID()
 	if not journalId and module:GetAllowWin() and module:GetEncounterID() then
-		journalId =  -(module:GetEncounterID()) -- Fallback to show stats for modules with no journal ID, but set to allow win
+		journalId = -(module:GetEncounterID()) -- Fallback to show stats for modules with no journal ID, but set to allow win
 	end
 	if journalId and id and id > 0 and sDB and sDB[id] and sDB[id][journalId] then
 		sDB = sDB[id][journalId]
