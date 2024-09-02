@@ -590,9 +590,9 @@ local function parseLua(file)
 	local options, option_keys, option_key_used = {}, {}, {}
 	local options_block_start = 0
 	local special_options = {}
-	local methods, registered_methods, unit_died_methods = {Win=true,Disable=true}, {}, {}
+	local methods, registered_methods, dispel_or_interrupt_methods, unit_died_methods = {Win=true,Disable=true}, {}, {}, {}
 	local event_callbacks = {}
-	local current_func = nil
+	local current_func, current_func_name = nil, nil
 	local args_keys = standard_args_keys
 	local rep = {} -- key replacements
 
@@ -775,6 +775,9 @@ local function parseLua(file)
 				options[callback] = nil
 			end
 			registered_methods[callback] = n
+			if event == "SPELL_DISPEL" or event == "SPELL_INTERRUPT" then
+				dispel_or_interrupt_methods[callback] = true
+			end
 		end
 		-- Record other registered events to check at the end
 		event, callback = line:match(":RegisterUnitEvent%(\"(.-)\"%s*,%s*(.-)%s*,.-%)")
@@ -804,6 +807,7 @@ local function parseLua(file)
 		if res then
 			current_func = res
 			local name = res:match(":(.+)")
+			current_func_name = name
 			methods[name] = true
 			rep = {}
 			rep.func_key = options[name]
@@ -818,6 +822,7 @@ local function parseLua(file)
 		res = line:match("^%s*local function%s+([%w_]+)%s*%(") or line:match("^%s*function%s+([%w_]+)%s*%(")
 		if res then
 			current_func = res
+			current_func_name = nil
 			methods[res] = true
 			rep = {}
 			rep.local_func_key = findCalls(lines, n, current_func, options)
@@ -829,6 +834,12 @@ local function parseLua(file)
 				rep.if_key = {}
 				for m in res:gmatch("spellId == (%d+)") do
 					rep.if_key[#rep.if_key+1] = m
+				end
+			end
+			if line:match("args.extraSpellId == %d+") then
+				rep.if_extra_key = {}
+				for m in res:gmatch("args.extraSpellId == (%d+)") do
+					rep.if_extra_key[#rep.if_extra_key+1] = m
 				end
 			end
 		end
@@ -1082,6 +1093,14 @@ local function parseLua(file)
 			for _, k in next, tablize(key) do
 				if k == "args.spellId" and rep.func_key then
 					k = rep.func_key
+				end
+				if k == "args.extraSpellId" and dispel_or_interrupt_methods[current_func_name] then
+					if rep.func_key then
+						k = rep.func_key
+					end
+					if rep.if_extra_key then
+						k = rep.if_extra_key
+					end
 				end
 				if k == "spellId" then
 					if rep.if_key then
