@@ -1223,7 +1223,7 @@ local function parseLua(file)
 					if (locale_string == "nil" or locale_string == "false") then locale_string = nil end
 					if common_locale and (locale_string and not common_locale[unquote(locale_string)]) then
 						local text = argsList[3+offset]
-						error(string.format("    %s:%d: %s: Invalid localeString(2)! func=%s, key=%s, localeString=%s, text=%s", file_name, n, functionName, tostring(current_func), key, tostring(locale_string), tostring(text)))
+						error(string.format("    %s:%d: %s: Invalid localeString(%d)! func=%s, key=%s, localeString=%s, text=%s", file_name, n, functionName, 2+offset, tostring(current_func), key, tostring(locale_string), tostring(text)))
 					end
 				end
 				local icon_index = icon_methods[functionName]
