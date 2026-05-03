@@ -60,6 +60,7 @@ local color_methods = {
 	StackMessageOld = 4,
 	StackMessage = 2,
 	DelayedMessage = 3,
+	TargetMessageFromBlizzMessage = 2,
 }
 local sound_methods = {
 	PlaySound = 2,
@@ -79,6 +80,8 @@ local icon_methods = {
 	StackMessageOld = 7,
 	StackMessage = 7,
 	PersonalMessage = 4,
+	TargetMessageFromBlizzMessage = 4,
+	PersonalMessageFromBlizzMessage = 4,
 	Bar = 4,
 	CDBar = 4,
 	CastBar = 4,
@@ -1192,6 +1195,8 @@ local function parseLua(file)
 			if functionName == "ScheduleTimer" or functionName == "ScheduleRepeatingTimer" then
 				functionName = argsList:match("^\"(.-)\"")
 				offset = 2
+			elseif functionName == "TargetMessageFromBlizzMessage" or functionName == "PersonalMessageFromBlizzMessage" then
+				offset = 1
 			end
 			if removed_methods[functionName] then
 				error(string.format("    %s:%d: Invalid API method! func=%s, method=%s", file_name, n, tostring(current_func), functionName))
@@ -1208,17 +1213,17 @@ local function parseLua(file)
 				local color_index = color_methods[functionName]
 				if color_index then
 					color = tablize(unternary(argsList[color_index+offset], "\"(.-)\"", valid_colors))
-					if functionName:sub(1, 6) == "Target" or functionName == "StackMessageOld" or functionName == "StackMessage" then
+					if (functionName:sub(1, 6) == "Target" and functionName ~= "TargetMessageFromBlizzMessage") or functionName == "StackMessageOld" or functionName == "StackMessage" then
 						color[#color+1] = "blue" -- used when on the player
 					end
 				end
-				if functionName == "PersonalMessage" then
+				if functionName == "PersonalMessage" or functionName == "PersonalMessageFromBlizzMessage" then
 					color = {"blue"}
 					local locale_string = argsList[2+offset]
 					if (locale_string == "nil" or locale_string == "false") then locale_string = nil end
 					if common_locale and (locale_string and not common_locale[unquote(locale_string)]) then
 						local text = argsList[3+offset]
-						error(string.format("    %s:%d: PersonalMessage: Invalid localeString(2)! func=%s, key=%s, localeString=%s, text=%s", file_name, n, tostring(current_func), key, tostring(locale_string), tostring(text)))
+						error(string.format("    %s:%d: %s: Invalid localeString(2)! func=%s, key=%s, localeString=%s, text=%s", file_name, n, functionName, tostring(current_func), key, tostring(locale_string), tostring(text)))
 					end
 				end
 				local icon_index = icon_methods[functionName]
